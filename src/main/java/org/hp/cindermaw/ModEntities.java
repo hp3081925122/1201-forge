@@ -59,7 +59,7 @@ public final class ModEntities {
 
     // 炉心胸甲：下界合金胸甲锻造升级
     public static final DeferredHolder<Item, Item> CINDERMAW_CHESTPLATE = ITEMS.register("cindermaw_chestplate",
-            () -> new ArmorItem(CindermawArmorMaterial.INSTANCE, ArmorItem.Type.CHESTPLATE, new Item.Properties().rarity(Rarity.EPIC).fireResistant()));
+            () -> new ArmorItem(CindermawArmorMaterial.INSTANCE, ArmorItem.Type.CHESTPLATE, new Item.Properties().stacksTo(1).rarity(Rarity.EPIC).fireResistant()));
 
     private ModEntities() {
     }

@@ -84,7 +84,6 @@ public final class MagmaEffectRenderer extends EntityRenderer<MagmaEffect> {
         int segments = d.getInt("Segments");
         float reveal = segments * Math.min(1.0F, age / 10.0F);
         float fade = Math.min(1.0F, (effect.life() - age) / 12.0F);
-        VertexConsumer glow = buffers.getBuffer(VfxDraw.GLOW);
         float[] cr = VfxDraw.CRACK;
         for (int line = 0; line < lines; line++) {
             for (int k = 0; k < segments; k++) {
@@ -102,7 +101,7 @@ public final class MagmaEffectRenderer extends EntityRenderer<MagmaEffect> {
                 double width = 0.22 + 0.25 * heat;
                 float partial = Math.min(1.0F, reveal - k);
                 Vec3 end = a.add(along.scale(partial));
-                VfxDraw.quad2(glow, pose, a.add(side.scale(width)), end.add(side.scale(width)), end.subtract(side.scale(width)), a.subtract(side.scale(width)),
+                VfxDraw.quad2(buffers.getBuffer(VfxDraw.GLOW), pose, a.add(side.scale(width)), end.add(side.scale(width)), end.subtract(side.scale(width)), a.subtract(side.scale(width)),
                         cr[0], cr[1], cr[0] + (cr[2] - cr[0]) * partial, cr[3], 0xFF8030, fade);
                 // 喷发火柱：迅速窜高后回落
                 float since = age - erupt;
@@ -173,9 +172,6 @@ public final class MagmaEffectRenderer extends EntityRenderer<MagmaEffect> {
         int moltenRgb = VfxDraw.mix(0xFFFFFF, 0x6A1608, cool);
         float moltenAlpha = (1.0F - cool * 0.9F) * fade;
         float crackAlpha = cool * fade * (0.75F + Mth.sin(time * 0.15F + seed) * 0.25F);
-        VertexConsumer scorch = buffers.getBuffer(VfxDraw.SOFT);
-        VertexConsumer molten = buffers.getBuffer(VfxDraw.MOLTEN);
-        VertexConsumer crust = buffers.getBuffer(VfxDraw.CRUST);
         float[] sr = VfxDraw.SCORCH;
         Vec3 c = new Vec3(0, lift, 0);
         for (int i = 0; i < n; i++) {
@@ -195,6 +191,7 @@ public final class MagmaEffectRenderer extends EntityRenderer<MagmaEffect> {
             float scu = (sr[0] + sr[2]) / 2;
             float scv = (sr[1] + sr[3]) / 2;
             float scorchAlpha = (0.55F + cool * 0.35F) * fade * grow;
+            VertexConsumer scorch = buffers.getBuffer(VfxDraw.SOFT);
             scorchVertex(scorch, m, nm, c.add(0, -0.008, 0), scu, scv, scorchAlpha);
             scorchVertex(scorch, m, nm, s1, su1, sv1, scorchAlpha);
             scorchVertex(scorch, m, nm, s0, su0, sv0, scorchAlpha);
@@ -202,6 +199,7 @@ public final class MagmaEffectRenderer extends EntityRenderer<MagmaEffect> {
             // 熔浆层：中心亮、边缘暗，贴图缓慢流动
             float cu = (float) ox + flow;
             float cv = (float) oz;
+            VertexConsumer molten = buffers.getBuffer(VfxDraw.MOLTEN);
             VfxDraw.vertex(molten, m, nm, c, cu, cv, moltenRgb, moltenAlpha);
             VfxDraw.vertex(molten, m, nm, p1, (float) (ox + p1.x * 0.4) + flow, (float) (oz + p1.z * 0.4), moltenRgb, moltenAlpha * 0.55F);
             VfxDraw.vertex(molten, m, nm, p0, (float) (ox + p0.x * 0.4) + flow, (float) (oz + p0.z * 0.4), moltenRgb, moltenAlpha * 0.55F);
@@ -211,6 +209,7 @@ public final class MagmaEffectRenderer extends EntityRenderer<MagmaEffect> {
                 Vec3 q0 = p0.add(0, 0.004, 0);
                 Vec3 q1 = p1.add(0, 0.004, 0);
                 Vec3 qc = c.add(0, 0.004, 0);
+                VertexConsumer crust = buffers.getBuffer(VfxDraw.CRUST);
                 VfxDraw.vertex(crust, m, nm, qc, (float) ox, (float) oz, 0xFF9A50, crackAlpha);
                 VfxDraw.vertex(crust, m, nm, q1, (float) (ox + q1.x * 0.4), (float) (oz + q1.z * 0.4), 0xFF9A50, crackAlpha * 0.4F);
                 VfxDraw.vertex(crust, m, nm, q0, (float) (ox + q0.x * 0.4), (float) (oz + q0.z * 0.4), 0xFF9A50, crackAlpha * 0.4F);
