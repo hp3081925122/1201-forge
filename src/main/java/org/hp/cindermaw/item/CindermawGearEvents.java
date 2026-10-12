@@ -34,7 +34,7 @@ public final class CindermawGearEvents {
     @SubscribeEvent
     public static void onHurt(LivingDamageEvent.Post event) {
         LivingEntity wearer = event.getEntity();
-        if (wearer.level().isClientSide || !wearer.getItemBySlot(EquipmentSlot.CHEST).is(ModEntities.CINDERMAW_CHESTPLATE.get())) {
+        if (wearer.level().isClientSide() || !wearer.getItemBySlot(EquipmentSlot.CHEST).is(ModEntities.CINDERMAW_CHESTPLATE.get())) {
             return;
         }
         if (!(event.getSource().getDirectEntity() instanceof LivingEntity attacker) || attacker == wearer || attacker.distanceTo(wearer) > 4.0F) {

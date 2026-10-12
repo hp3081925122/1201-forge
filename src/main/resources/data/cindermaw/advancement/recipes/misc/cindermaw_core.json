@@ -1,14 +1,12 @@
 {
   "parent": "minecraft:recipes/root",
   "criteria": {
-    "has_heart": {
+    "has_blaze_rod": {
       "trigger": "minecraft:inventory_changed",
       "conditions": {
         "items": [
           {
-            "items": [
-              "cindermaw:cindermaw_heart"
-            ]
+            "items": "minecraft:blaze_rod"
           }
         ]
       }
@@ -16,19 +14,19 @@
     "has_the_recipe": {
       "trigger": "minecraft:recipe_unlocked",
       "conditions": {
-        "recipe": "cindermaw:cindermaw_chestplate"
+        "recipe": "cindermaw:cindermaw_core"
       }
     }
   },
   "requirements": [
     [
-      "has_heart",
+      "has_blaze_rod",
       "has_the_recipe"
     ]
   ],
   "rewards": {
     "recipes": [
-      "cindermaw:cindermaw_chestplate"
+      "cindermaw:cindermaw_core"
     ]
   }
 }

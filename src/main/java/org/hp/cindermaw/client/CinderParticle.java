@@ -3,36 +3,33 @@ package org.hp.cindermaw.client;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.ParticleProvider;
-import net.minecraft.client.particle.ParticleRenderType;
+import net.minecraft.client.particle.SingleQuadParticle;
 import net.minecraft.client.particle.SpriteSet;
-import net.minecraft.client.particle.TextureSheetParticle;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 
-// 自绘像素粒子：五种行为共用一个类，由注册时的样式区分。
-public final class CinderParticle extends TextureSheetParticle {
+public final class CinderParticle extends SingleQuadParticle {
     public enum Style { EMBER, SMOKE, FLAME, CHUNK, FLASH }
 
     private final Style style;
     private final SpriteSet sprites;
     private final float baseSize;
 
-    private CinderParticle(ClientLevel level, double x, double y, double z, double vx, double vy, double vz, SpriteSet sprites, Style style) {
-        super(level, x, y, z, 0, 0, 0);
+    private CinderParticle(ClientLevel level, double x, double y, double z, double vx, double vy, double vz, SpriteSet sprites, Style style, RandomSource random) {
+        super(level, x, y, z, sprites.get(random));
         this.style = style;
         this.sprites = sprites;
         xd = vx;
         yd = vy;
         zd = vz;
         hasPhysics = false;
-        // 各样式的寿命、大小、重力与阻力
         switch (style) {
             case EMBER -> {
                 lifetime = 14 + random.nextInt(18);
                 baseSize = 0.05F + random.nextFloat() * 0.06F;
                 gravity = -0.02F + random.nextFloat() * 0.06F;
                 friction = 0.93F;
-                pickSprite(sprites);
             }
             case SMOKE -> {
                 lifetime = 28 + random.nextInt(24);
@@ -54,7 +51,6 @@ public final class CinderParticle extends TextureSheetParticle {
                 gravity = 1.0F;
                 friction = 0.98F;
                 hasPhysics = true;
-                pickSprite(sprites);
             }
             default -> {
                 lifetime = 5 + random.nextInt(3);
@@ -68,7 +64,6 @@ public final class CinderParticle extends TextureSheetParticle {
             }
         }
         quadSize = baseSize;
-        // 烟团用暗灰，其余保留贴图原色
         if (style == Style.SMOKE) {
             float grey = 0.16F + random.nextFloat() * 0.08F;
             setColor(grey, grey * 0.92F, grey * 0.9F);
@@ -83,7 +78,6 @@ public final class CinderParticle extends TextureSheetParticle {
             return;
         }
         float t = (float) age / lifetime;
-        // 按样式更新序列帧、颜色、透明度与大小
         switch (style) {
             case EMBER -> {
                 xd += (random.nextFloat() - 0.5F) * 0.012F;
@@ -102,9 +96,7 @@ public final class CinderParticle extends TextureSheetParticle {
                 alpha = Math.min(1.0F, (1.0F - t) * 2.5F);
                 quadSize = baseSize * (1.0F + Mth.sin(t * Mth.PI) * 0.6F);
             }
-            case CHUNK -> {
-                alpha = Math.min(1.0F, (1.0F - t) * 4.0F);
-            }
+            case CHUNK -> alpha = Math.min(1.0F, (1.0F - t) * 4.0F);
             default -> {
                 setSpriteFromAge(sprites);
                 alpha = 1.0F - t;
@@ -113,21 +105,19 @@ public final class CinderParticle extends TextureSheetParticle {
         }
     }
 
-    // 火星、火焰与闪光全亮，碎块和烟团受环境光
     @Override
-    protected int getLightColor(float partial) {
+    protected int getLightCoords(float partial) {
         if (style == Style.SMOKE || style == Style.CHUNK) {
-            return super.getLightColor(partial);
+            return super.getLightCoords(partial);
         }
         return 0xF000F0;
     }
 
     @Override
-    public ParticleRenderType getRenderType() {
-        return ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT;
+    protected Layer getLayer() {
+        return Layer.TRANSLUCENT;
     }
 
-    // 粒子工厂：注册时绑定样式
     public static final class Provider implements ParticleProvider<SimpleParticleType> {
         private final SpriteSet sprites;
         private final Style style;
@@ -138,8 +128,8 @@ public final class CinderParticle extends TextureSheetParticle {
         }
 
         @Override
-        public Particle createParticle(SimpleParticleType type, ClientLevel level, double x, double y, double z, double vx, double vy, double vz) {
-            return new CinderParticle(level, x, y, z, vx, vy, vz, sprites, style);
+        public Particle createParticle(SimpleParticleType type, ClientLevel level, double x, double y, double z, double vx, double vy, double vz, RandomSource random) {
+            return new CinderParticle(level, x, y, z, vx, vy, vz, sprites, style, random);
         }
     }
 }

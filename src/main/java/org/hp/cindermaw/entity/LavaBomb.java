@@ -2,7 +2,6 @@ package org.hp.cindermaw.entity;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
-import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -11,6 +10,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -20,7 +21,7 @@ import org.hp.cindermaw.client.CinderFx;
 
 // 火山齐射的熔岩弹：发射时确定抛物线，落点提前显示预警，命中后爆炸并留下熔岩池。
 public final class LavaBomb extends Projectile {
-    private static final EntityDataAccessor<CompoundTag> FLIGHT = SynchedEntityData.defineId(LavaBomb.class, EntityDataSerializers.COMPOUND_TAG);
+    private static final EntityDataAccessor<CompoundTag> FLIGHT = SynchedEntityData.defineId(LavaBomb.class, SyncedTag.COMPOUND);
     public static final int LINGER = 4;
     public int clientFxAge = Integer.MIN_VALUE;
     public boolean clientImpactDone;
@@ -58,29 +59,29 @@ public final class LavaBomb extends Projectile {
     }
 
     public int flightTicks() {
-        return entityData.get(FLIGHT).getInt("Ticks");
+        return entityData.get(FLIGHT).getIntOr("Ticks", 0);
     }
 
     public float age(float partial) {
-        return (int) level().getGameTime() - entityData.get(FLIGHT).getInt("Start") + partial;
+        return (int) level().getGameTime() - entityData.get(FLIGHT).getIntOr("Start", 0) + partial;
     }
 
     public boolean impacted() {
-        return entityData.get(FLIGHT).getBoolean("Hit");
+        return entityData.get(FLIGHT).getBooleanOr("Hit", false);
     }
 
     public float impactAge(float partial) {
-        return (int) level().getGameTime() - entityData.get(FLIGHT).getInt("HitTime") + partial;
+        return (int) level().getGameTime() - entityData.get(FLIGHT).getIntOr("HitTime", 0) + partial;
     }
 
     public Vec3 landing() {
         CompoundTag d = entityData.get(FLIGHT);
-        return new Vec3(d.getDouble("EX"), d.getDouble("EY"), d.getDouble("EZ"));
+        return new Vec3(d.getDoubleOr("EX", 0.0), d.getDoubleOr("EY", 0.0), d.getDoubleOr("EZ", 0.0));
     }
 
     public Vec3 sample(float age) {
         CompoundTag d = entityData.get(FLIGHT);
-        Vec3 start = new Vec3(d.getDouble("SX"), d.getDouble("SY"), d.getDouble("SZ"));
+        Vec3 start = new Vec3(d.getDoubleOr("SX", 0.0), d.getDoubleOr("SY", 0.0), d.getDoubleOr("SZ", 0.0));
         double t = Math.max(0, Math.min(1, age / flightTicks()));
         double arc = 6.0 + start.distanceTo(landing()) * 0.35;
         return start.add(landing().subtract(start).scale(t)).add(0, arc * 4 * t * (1 - t), 0);
@@ -90,23 +91,23 @@ public final class LavaBomb extends Projectile {
     public void tick() {
         super.tick();
         if (!ready()) {
-            if (!level().isClientSide) {
+            if (!level().isClientSide()) {
                 discard();
             }
             return;
         }
         // 客户端只负责特效
-        if (level().isClientSide) {
-            if (level().isClientSide) CinderFx.bombTick(this);
+        if (level().isClientSide()) {
+            if (level().isClientSide()) CinderFx.bombTick(this);
         }
         if (impacted()) {
-            if (!level().isClientSide && impactAge(0) >= LINGER) {
+            if (!level().isClientSide() && impactAge(0) >= LINGER) {
                 discard();
             }
             return;
         }
         Vec3 next = sample(age(0) + 1);
-        if (!level().isClientSide) {
+        if (!level().isClientSide()) {
             // 按实际曲线逐段检测方块，屋顶和墙壁会提前引爆
             var hit = level().clip(new ClipContext(position(), next, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY, this));
             if (hit.getType() != HitResult.Type.MISS || age(0) >= flightTicks()) {
@@ -142,7 +143,7 @@ public final class LavaBomb extends Projectile {
             if (!owner.canHarm(victim) || center.distanceToSqr(contact) > 2.4 * 2.4 || !owner.clearPath(contact.add(0, 0.3, 0), victim)) {
                 continue;
             }
-            if (victim.hurt(damageSources().mobProjectile(this, owner), owner.attackDamage() * 0.7F)) {
+            if (victim.hurtOrSimulate(damageSources().mobProjectile(this, owner), owner.attackDamage() * 0.7F)) {
                 victim.setRemainingFireTicks((3) * 20);
                 CindermawEntity.shove(victim, victim.position().subtract(contact), 0.5, 0.3);
             }
@@ -153,11 +154,11 @@ public final class LavaBomb extends Projectile {
 
     // 熔岩弹不持久化
     @Override
-    protected void addAdditionalSaveData(CompoundTag tag) {
+    protected void addAdditionalSaveData(ValueOutput output) {
     }
 
     @Override
-    protected void readAdditionalSaveData(CompoundTag tag) {
+    protected void readAdditionalSaveData(ValueInput input) {
     }
 
     // 短寿命实体不写入存档

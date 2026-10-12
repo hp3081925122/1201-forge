@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "BHB",
+    "BNB",
+    " R "
+  ],
+  "key": {
+    "B": "minecraft:polished_blackstone",
+    "H": "cindermaw:cindermaw_heart",
+    "N": "minecraft:netherite_ingot",
+    "R": "minecraft:blaze_rod"
+  },
+  "result": {
+    "id": "cindermaw:cindermaw_hammer"
+  }
+}

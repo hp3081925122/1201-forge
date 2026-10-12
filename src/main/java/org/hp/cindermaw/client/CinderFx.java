@@ -361,12 +361,12 @@ public final class CinderFx {
     }
 
     private static void effectTickAt(MagmaEffect effect, int age) {
-        RandomSource random = effect.level().random;
+        RandomSource random = effect.level().getRandom();
         Vec3 center = effect.position();
         var d = effect.data();
         switch (effect.kind()) {
             case MagmaEffect.SHOCKWAVE -> {
-                float radius = d.getFloat("R");
+                float radius = d.getFloat("R").orElse(0.0F);
                 if (age == 0) {
                     spawn(ModParticles.HEAT_FLASH.get(), center.add(0, 0.4, 0), radius * 0.7, 0, 0);
                     debris(center, (int) (radius * 6), radius * 0.09, random);
@@ -381,15 +381,15 @@ public final class CinderFx {
                         double angle = random.nextDouble() * Math.PI * 2;
                         Vec3 at = center.add(Math.cos(angle) * r, 0.15, Math.sin(angle) * r);
                         spawn(ModParticles.CINDER_SMOKE.get(), at, Math.cos(angle) * 0.08, 0.04, Math.sin(angle) * 0.08);
-                        if (d.getInt("Style") == 1) {
+                        if (d.getIntOr("Style", 0) == 1) {
                             spawn(ModParticles.BLAZE_FLAME.get(), at, Math.cos(angle) * 0.1, 0.05, Math.sin(angle) * 0.1);
                         }
                     }
                 }
             }
             case MagmaEffect.FISSURE -> {
-                int lines = d.getInt("Lines");
-                int segments = d.getInt("Segments");
+                int lines = d.getIntOr("Lines", 0);
+                int segments = d.getIntOr("Segments", 0);
                 for (int line = 0; line < lines; line++) {
                     for (int k = 0; k < segments; k++) {
                         float dy = effect.groundOffset(line * segments + k);
@@ -416,8 +416,8 @@ public final class CinderFx {
                 }
             }
             case MagmaEffect.GEYSERS -> {
-                int delay = d.getInt("Delay");
-                for (int i = 0; i < d.getInt("Count"); i++) {
+                int delay = d.getIntOr("Delay", 0);
+                for (int i = 0; i < d.getIntOr("Count", 0); i++) {
                     float dy = effect.groundOffset(i);
                     if (Float.isNaN(dy)) {
                         continue;
@@ -440,7 +440,7 @@ public final class CinderFx {
                 }
             }
             case MagmaEffect.POOL -> {
-                float radius = d.getFloat("R");
+                float radius = d.getFloat("R").orElse(0.0F);
                 // 熔岩池冒泡、窜火与青烟
                 if (age < effect.life() - 15) {
                     double angle = random.nextDouble() * Math.PI * 2;
@@ -459,7 +459,7 @@ public final class CinderFx {
             }
             case MagmaEffect.NOVA -> {
                 float radius = effect.novaRadius(age);
-                if (radius > d.getFloat("R")) {
+                if (radius > d.getFloat("R").orElse(0.0F)) {
                     return;
                 }
                 if (age == 0) {
@@ -484,7 +484,7 @@ public final class CinderFx {
     // ===== 熔岩弹 =====
 
     public static void bombTick(LavaBomb bomb) {
-        RandomSource random = bomb.level().random;
+        RandomSource random = bomb.level().getRandom();
         if (!bomb.impacted()) {
             // 飞行拖尾：烟、火、火星
             Vec3 at = bomb.position();
@@ -509,3 +509,4 @@ public final class CinderFx {
         shake(at, 0.4F, 12);
     }
 }
+

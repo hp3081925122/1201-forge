@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:smithing_transform",
+  "template": "cindermaw:cindermaw_heart",
+  "base": "minecraft:netherite_chestplate",
+  "addition": "minecraft:magma_block",
+  "result": {
+    "id": "cindermaw:cindermaw_chestplate"
+  }
+}

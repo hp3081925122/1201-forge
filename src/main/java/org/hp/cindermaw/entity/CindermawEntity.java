@@ -1,11 +1,11 @@
 package org.hp.cindermaw.entity;
 
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerBossEvent;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -14,6 +14,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -29,6 +30,8 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
@@ -38,18 +41,19 @@ import net.minecraft.world.phys.Vec3;
 
 import org.hp.cindermaw.ModEntities;
 import org.hp.cindermaw.client.CinderFx;
-import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.animation.AnimatableManager;
-import software.bernie.geckolib.animation.AnimationController;
-import software.bernie.geckolib.animation.AnimationState;
-import software.bernie.geckolib.animation.RawAnimation;
-import software.bernie.geckolib.animation.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
+import com.geckolib.animatable.GeoEntity;
+import com.geckolib.animatable.instance.AnimatableInstanceCache;
+import com.geckolib.animatable.manager.AnimatableManager;
+import com.geckolib.animation.AnimationController;
+import com.geckolib.animation.state.AnimationTest;
+import com.geckolib.animation.RawAnimation;
+import com.geckolib.animation.object.PlayState;
+import com.geckolib.util.GeckoLibUtil;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.UUID;
 
 // 熔渊炉心：撑地行走的玄武岩炉心巨兽，所有技能由服务端时间线驱动。
 public final class CindermawEntity extends Monster implements GeoEntity {
@@ -73,7 +77,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
     public final List<Vec3[]> clientTrail = new ArrayList<>();
     public int clientFxAge = Integer.MIN_VALUE;
 
-    private final ServerBossEvent bossEvent = new ServerBossEvent(getDisplayName(), BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.NOTCHED_10);
+    private final ServerBossEvent bossEvent = new ServerBossEvent(UUID.randomUUID(), getDisplayName(), BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.NOTCHED_10);
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final int[] cooldowns = new int[CindermawAttack.values().length];
     private int attackGap = 40;
@@ -210,8 +214,8 @@ public final class CindermawEntity extends Monster implements GeoEntity {
     public void tick() {
         super.tick();
         // 客户端只负责特效
-        if (level().isClientSide) {
-            if (level().isClientSide) CinderFx.bossTick(this);
+        if (level().isClientSide()) {
+            if (level().isClientSide()) CinderFx.bossTick(this);
             return;
         }
         bossEvent.setProgress(getHealth() / getMaxHealth());
@@ -465,7 +469,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             if (!canHarm(victim) || offset.horizontalDistance() > 3.2 + victim.getBbWidth() * 0.5 || !clearPath(center.add(0, 0.5, 0), victim)) {
                 continue;
             }
-            if (victim.hurt(damageSources().mobAttack(this), damage)) {
+            if (victim.hurtOrSimulate(damageSources().mobAttack(this), damage)) {
                 shove(victim, victim.position().subtract(position()), 0.9, 0.55);
             }
         }
@@ -498,7 +502,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             if (!clearPath(chest, victim)) {
                 continue;
             }
-            if (victim.hurt(damageSources().mobAttack(this), attackDamage() * 0.9F)) {
+            if (victim.hurtOrSimulate(damageSources().mobAttack(this), attackDamage() * 0.9F)) {
                 shove(victim, push, 1.3, 0.35);
                 victim.setRemainingFireTicks((3) * 20);
             }
@@ -521,7 +525,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
                 continue;
             }
             victim.invulnerableTime = 0;
-            if (victim.hurt(damageSources().mobAttack(this), attackDamage() * 0.3F)) {
+            if (victim.hurtOrSimulate(damageSources().mobAttack(this), attackDamage() * 0.3F)) {
                 victim.setRemainingFireTicks((5) * 20);
                 victim.setDeltaMovement(victim.getDeltaMovement().add(direction.scale(0.12)));
                 victim.hurtMarked = true;
@@ -547,7 +551,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             if (ground.getType() == HitResult.Type.MISS) {
                 continue;
             }
-            LavaBomb bomb = ModEntities.LAVA_BOMB.get().create(level());
+            LavaBomb bomb = ModEntities.LAVA_BOMB.get().create(level(), EntitySpawnReason.TRIGGERED);
             if (bomb == null) {
                 continue;
             }
@@ -571,7 +575,6 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             Vec3 offset = target.position().subtract(position());
             leapHorizontal = new Vec3(offset.x / 22.0, 0, offset.z / 22.0);
             setDeltaMovement(leapHorizontal.x, 1.0 + Mth.clamp(offset.y / 20.0, -0.1, 0.25), leapHorizontal.z);
-            hasImpulse = true;
             playSound(SoundEvents.GENERIC_EXPLODE.value(), 1.4F, 0.8F);
         }
         if (age > 12) {
@@ -603,7 +606,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
                 continue;
             }
             float scale = (float) (1.4 - 0.6 * distance / 6.0);
-            if (victim.hurt(damageSources().mobAttack(this), attackDamage() * scale)) {
+            if (victim.hurtOrSimulate(damageSources().mobAttack(this), attackDamage() * scale)) {
                 shove(victim, offset, 1.2, 0.6);
             }
         }
@@ -632,7 +635,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             if (!canHarm(victim) || victim.distanceTo(this) > 9.0) {
                 continue;
             }
-            if (victim.hurt(damageSources().mobAttack(this), attackDamage() * 0.3F)) {
+            if (victim.hurtOrSimulate(damageSources().mobAttack(this), attackDamage() * 0.3F)) {
                 victim.setRemainingFireTicks((4) * 20);
             }
             shove(victim, victim.position().subtract(position()), 1.6, 0.5);
@@ -652,15 +655,15 @@ public final class CindermawEntity extends Monster implements GeoEntity {
 
     // 咆哮期间无敌
     @Override
-    public boolean hurt(DamageSource source, float amount) {
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
         if (getAttack() == CindermawAttack.ROAR) {
             return false;
         }
-        return super.hurt(source, amount);
+        return super.hurtServer(level, source, amount);
     }
 
     @Override
-    public boolean causeFallDamage(float distance, float multiplier, DamageSource source) {
+    public boolean causeFallDamage(double distance, float multiplier, DamageSource source) {
         return false;
     }
 
@@ -668,7 +671,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
     @Override
     public void die(DamageSource source) {
         super.die(source);
-        if (!level().isClientSide) {
+        if (!level().isClientSide()) {
             entityData.set(ATTACK, 0);
             triggerAnim("main", "death");
             playSound(SoundEvents.RAVAGER_DEATH, 3.0F, 0.5F);
@@ -678,7 +681,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
     @Override
     protected void tickDeath() {
         deathTime++;
-        if (deathTime >= 60 && !level().isClientSide && !isRemoved()) {
+        if (deathTime >= 60 && !level().isClientSide() && !isRemoved()) {
             playSound(SoundEvents.GENERIC_EXPLODE.value(), 3.0F, 0.7F);
             remove(RemovalReason.KILLED);
         }
@@ -731,15 +734,15 @@ public final class CindermawEntity extends Monster implements GeoEntity {
 
     // 保存阶段，重载后保持二阶段外观
     @Override
-    public void addAdditionalSaveData(CompoundTag tag) {
-        super.addAdditionalSaveData(tag);
-        tag.putBoolean("Phase2", isPhase2());
+    public void addAdditionalSaveData(ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        output.putBoolean("Phase2", isPhase2());
     }
 
     @Override
-    public void readAdditionalSaveData(CompoundTag tag) {
-        super.readAdditionalSaveData(tag);
-        entityData.set(PHASE2, tag.getBoolean("Phase2"));
+    public void readAdditionalSaveData(ValueInput input) {
+        super.readAdditionalSaveData(input);
+        entityData.set(PHASE2, input.getBooleanOr("Phase2", false));
         if (isPhase2()) {
             bossEvent.setColor(BossEvent.BossBarColor.YELLOW);
         }
@@ -749,8 +752,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
     // 主控制器：行走/待机循环 + 全部技能触发动画；火焰控制器只驱动火山火焰骨骼
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "main", 4, this::mainState)
-                .setAnimationSpeedHandler(CindermawEntity::animationSpeed)
+        controllers.add(new AnimationController<>("main", 4, this::mainState)
                 .triggerableAnim("slam", RawAnimation.begin().thenPlay("animation.cindermaw.slam"))
                 .triggerableAnim("sweep", RawAnimation.begin().thenPlay("animation.cindermaw.sweep"))
                 .triggerableAnim("breath", RawAnimation.begin().thenPlay("animation.cindermaw.breath"))
@@ -760,20 +762,31 @@ public final class CindermawEntity extends Monster implements GeoEntity {
                 .triggerableAnim("nova", RawAnimation.begin().thenPlay("animation.cindermaw.nova"))
                 .triggerableAnim("roar", RawAnimation.begin().thenPlay("animation.cindermaw.roar"))
                 .triggerableAnim("death", RawAnimation.begin().thenPlayAndHold("animation.cindermaw.death")));
-        controllers.add(new AnimationController<>(this, "flames", 0, this::flameState));
+        controllers.add(new AnimationController<>("flames", 0, this::flameState));
     }
 
-    private PlayState mainState(AnimationState<CindermawEntity> state) {
+    private PlayState mainState(AnimationTest<CindermawEntity> state) {
+        state.setControllerSpeed((float) animationSpeed(this));
         if (isDeadOrDying() || getAttack() != CindermawAttack.NONE) {
             return PlayState.CONTINUE;
         }
-        if (state.isMoving() && onGround()) {
+        if (onGround() && stepping()) {
             return state.setAndContinue(WALK);
         }
         return state.setAndContinue(IDLE);
     }
 
-    private PlayState flameState(AnimationState<CindermawEntity> state) {
+    // GeckoLib 5 的 isMoving 拿 walkAnimation.speed() 和 0.015 比。闲逛水平速度大约 0.01，过不了这条线，慢走会一直停在待机。
+    private boolean stepping() {
+        if (walkAnimation.speed() > 0.002F) {
+            return true;
+        }
+        double dx = getX() - xo;
+        double dz = getZ() - zo;
+        return dx * dx + dz * dz > 2.5E-5D;
+    }
+
+    private PlayState flameState(AnimationTest<CindermawEntity> state) {
         if (isPhase2()) {
             return state.setAndContinue(FLICKER_HOT);
         }
@@ -838,3 +851,4 @@ public final class CindermawEntity extends Monster implements GeoEntity {
         }
     }
 }
+

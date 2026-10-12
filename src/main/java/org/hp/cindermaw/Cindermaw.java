@@ -3,8 +3,6 @@ package org.hp.cindermaw;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
-import net.minecraft.world.item.CreativeModeTabs;
-import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -15,7 +13,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import org.hp.cindermaw.entity.CindermawEntity;
-import org.hp.cindermaw.item.CindermawArmorMaterial;
+import org.hp.cindermaw.entity.SyncedTag;
 import org.hp.cindermaw.item.CindermawGearEvents;
 import org.hp.cindermaw.client.ClientEvents;
 import org.hp.cindermaw.client.CinderFx;
@@ -34,35 +32,26 @@ public final class Cindermaw {
                 output.accept(ModEntities.CINDERMAW_HEART.get());
                 output.accept(ModEntities.CINDERMAW_HAMMER.get());
                 output.accept(ModEntities.CINDERMAW_CHESTPLATE.get());
-                output.accept(ModEntities.CINDERMAW_SPAWN_EGG.get());
             })
             .build());
 
     public Cindermaw(IEventBus bus, ModContainer container) {
         // 注册实体、物品、粒子类型与创造物品栏
+        SyncedTag.SERIALIZERS.register(bus);
         ModEntities.ENTITIES.register(bus);
         ModEntities.ITEMS.register(bus);
         ModParticles.PARTICLES.register(bus);
-        CindermawArmorMaterial.MATERIALS.register(bus);
         TABS.register(bus);
         NeoForge.EVENT_BUS.register(CindermawGearEvents.class);
-        if (FMLEnvironment.dist == Dist.CLIENT) {
+        if (FMLEnvironment.getDist() == Dist.CLIENT) {
             bus.register(ClientEvents.class);
             NeoForge.EVENT_BUS.register(CinderFx.class);
         }
         bus.addListener(this::registerAttributes);
-        bus.addListener(this::fillCreativeTab);
     }
 
-    // 为 Boss 注册服务端属性，确保刷怪蛋和命令召唤拥有完整属性。
+    // 为 Boss 注册服务端属性，确保命令召唤拥有完整属性。
     private void registerAttributes(EntityAttributeCreationEvent event) {
         event.put(ModEntities.CINDERMAW.get(), CindermawEntity.createAttributes().build());
-    }
-
-    // 刷怪蛋同时保留在原版生成蛋页
-    private void fillCreativeTab(BuildCreativeModeTabContentsEvent event) {
-        if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
-            event.accept(ModEntities.CINDERMAW_SPAWN_EGG.get());
-        }
     }
 }

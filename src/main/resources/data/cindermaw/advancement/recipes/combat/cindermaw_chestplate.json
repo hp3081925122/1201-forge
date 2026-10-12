@@ -6,9 +6,7 @@
       "conditions": {
         "items": [
           {
-            "items": [
-              "cindermaw:cindermaw_heart"
-            ]
+            "items": "cindermaw:cindermaw_heart"
           }
         ]
       }
@@ -16,7 +14,7 @@
     "has_the_recipe": {
       "trigger": "minecraft:recipe_unlocked",
       "conditions": {
-        "recipe": "cindermaw:cindermaw_hammer"
+        "recipe": "cindermaw:cindermaw_chestplate"
       }
     }
   },
@@ -28,7 +26,7 @@
   ],
   "rewards": {
     "recipes": [
-      "cindermaw:cindermaw_hammer"
+      "cindermaw:cindermaw_chestplate"
     ]
   }
 }

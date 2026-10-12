@@ -2,17 +2,19 @@ package org.hp.cindermaw.entity;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
-import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -34,7 +36,7 @@ public final class MagmaEffect extends Projectile {
     public static final int NO_GROUND = -9999;
     public static final float SEGMENT = 1.0F;
 
-    private static final EntityDataAccessor<CompoundTag> DATA = SynchedEntityData.defineId(MagmaEffect.class, EntityDataSerializers.COMPOUND_TAG);
+    private static final EntityDataAccessor<CompoundTag> DATA = SynchedEntityData.defineId(MagmaEffect.class, SyncedTag.COMPOUND);
     private final Set<Integer> struck = new HashSet<>();
     public int clientFxAge = Integer.MIN_VALUE;
 
@@ -59,20 +61,20 @@ public final class MagmaEffect extends Projectile {
     }
 
     public int kind() {
-        return data().getInt("Kind");
+        return data().getIntOr("Kind", 0);
     }
 
     public float age(float partial) {
-        return (int) level().getGameTime() - data().getInt("Start") + partial;
+        return (int) level().getGameTime() - data().getIntOr("Start", 0) + partial;
     }
 
     public int life() {
-        return data().getInt("Life");
+        return data().getIntOr("Life", 0);
     }
 
     // 地面高度偏移：以 1/16 格保存，NO_GROUND 表示悬空
     public float groundOffset(int index) {
-        int[] heights = data().getIntArray("H");
+        int[] heights = data().getIntArray("H").orElseGet(() -> new int[0]);
         if (index < 0 || index >= heights.length || heights[index] == NO_GROUND) {
             return Float.NaN;
         }
@@ -82,9 +84,9 @@ public final class MagmaEffect extends Projectile {
     // 裂缝第 line 条第 k 段的水平偏移
     public Vec3 fissurePoint(int line, int k) {
         CompoundTag d = data();
-        int lines = d.getInt("Lines");
-        float spread = d.getFloat("Spread");
-        float yaw = d.getFloat("Yaw");
+        int lines = d.getIntOr("Lines", 0);
+        float spread = d.getFloat("Spread").orElse(0.0F);
+        float yaw = d.getFloat("Yaw").orElse(0.0F);
         float offset = 0;
         if (lines > 1) {
             offset = -spread * 0.5F + spread * line / (lines - 1);
@@ -102,8 +104,8 @@ public final class MagmaEffect extends Projectile {
     // 喷泉环第 i 个喷口的水平偏移
     public Vec3 geyserPoint(int i) {
         CompoundTag d = data();
-        float angle = (float) (i * Math.PI * 2 / d.getInt("Count")) + d.getFloat("Phase");
-        float radius = d.getFloat("R");
+        float angle = (float) (i * Math.PI * 2 / d.getIntOr("Count", 0)) + d.getFloat("Phase").orElse(0.0F);
+        float radius = d.getFloat("R").orElse(0.0F);
         return new Vec3(Mth.cos(angle) * radius, 0, Mth.sin(angle) * radius);
     }
 
@@ -114,7 +116,7 @@ public final class MagmaEffect extends Projectile {
 
     // 生成效果实体并写入初始数据
     private static MagmaEffect spawn(LivingEntity owner, Vec3 at, CompoundTag d, int life) {
-        MagmaEffect effect = ModEntities.MAGMA_EFFECT.get().create(owner.level());
+        MagmaEffect effect = ModEntities.MAGMA_EFFECT.get().create(owner.level(), EntitySpawnReason.TRIGGERED);
         if (effect == null) {
             return null;
         }
@@ -193,7 +195,7 @@ public final class MagmaEffect extends Projectile {
         // 每个喷口单独贴地
         int[] heights = new int[count];
         for (int i = 0; i < count; i++) {
-            float angle = (float) (i * Math.PI * 2 / count) + d.getFloat("Phase");
+            float angle = (float) (i * Math.PI * 2 / count) + d.getFloat("Phase").orElse(0.0F);
             heights[i] = sampleGround(owner, at.add(Mth.cos(angle) * radius, 0, Mth.sin(angle) * radius));
         }
         d.putIntArray("H", heights);
@@ -219,9 +221,9 @@ public final class MagmaEffect extends Projectile {
         super.tick();
         setDeltaMovement(Vec3.ZERO);
         // 客户端只负责特效
-        if (level().isClientSide) {
+        if (level().isClientSide()) {
             if (ready()) {
-                if (level().isClientSide) CinderFx.effectTick(this);
+                if (level().isClientSide()) CinderFx.effectTick(this);
             }
             return;
         }
@@ -258,8 +260,8 @@ public final class MagmaEffect extends Projectile {
     // 裂缝：每段在喷发刻对附近目标结算一次
     private void tickFissure(LivingEntity owner, int age) {
         CompoundTag d = data();
-        int lines = d.getInt("Lines");
-        int segments = d.getInt("Segments");
+        int lines = d.getIntOr("Lines", 0);
+        int segments = d.getIntOr("Segments", 0);
         for (int line = 0; line < lines; line++) {
             for (int k = 0; k < segments; k++) {
                 if (fissureEruptAge(k) != age) {
@@ -270,7 +272,7 @@ public final class MagmaEffect extends Projectile {
                     continue;
                 }
                 Vec3 point = position().add(fissurePoint(line, k)).add(0, dy, 0);
-                strike(owner, point, 1.0, 2.6, d.getFloat("Damage"), 4, 0.75);
+                strike(owner, point, 1.0, 2.6, d.getFloat("Damage").orElse(0.0F), 4, 0.75);
                 if (k % 3 == 0) {
                     level().playSound(null, point.x, point.y, point.z, SoundEvents.LAVA_POP, SoundSource.HOSTILE, 1.4F, 0.6F);
                 }
@@ -281,10 +283,10 @@ public final class MagmaEffect extends Projectile {
     // 喷泉环：延迟结束时一起喷发
     private void tickGeysers(CindermawEntity owner, int age) {
         CompoundTag d = data();
-        if (age != d.getInt("Delay")) {
+        if (age != d.getIntOr("Delay", 0)) {
             return;
         }
-        for (int i = 0; i < d.getInt("Count"); i++) {
+        for (int i = 0; i < d.getIntOr("Count", 0); i++) {
             float dy = groundOffset(i);
             if (Float.isNaN(dy)) {
                 continue;
@@ -301,14 +303,14 @@ public final class MagmaEffect extends Projectile {
         if (age % 10 != 5 || age > life() - 10) {
             return;
         }
-        float radius = data().getFloat("R");
+        float radius = data().getFloat("R").orElse(0.0F);
         for (LivingEntity victim : level().getEntitiesOfClass(LivingEntity.class, new AABB(position(), position()).inflate(radius, 1.0, radius))) {
             Vec3 offset = victim.position().subtract(position());
             if (!owner.canHarm(victim) || offset.horizontalDistance() > radius || offset.y < -0.6 || offset.y > 0.8) {
                 continue;
             }
             victim.invulnerableTime = 0;
-            if (victim.hurt(damageSources().mobProjectile(this, owner), owner.attackDamage() * 0.12F)) {
+            if (victim.hurtOrSimulate(damageSources().mobProjectile(this, owner), owner.attackDamage() * 0.12F)) {
                 victim.setRemainingFireTicks((3) * 20);
             }
         }
@@ -317,7 +319,7 @@ public final class MagmaEffect extends Projectile {
     // 新星：火墙经过时脚下没有跳起的目标被击中，每个目标只命中一次
     private void tickNova(CindermawEntity owner, int age) {
         float radius = novaRadius(age);
-        float max = data().getFloat("R");
+        float max = data().getFloat("R").orElse(0.0F);
         if (radius > max) {
             return;
         }
@@ -331,7 +333,7 @@ public final class MagmaEffect extends Projectile {
                 continue;
             }
             struck.add(victim.getId());
-            if (victim.hurt(damageSources().mobProjectile(this, owner), owner.attackDamage() * 0.8F)) {
+            if (victim.hurtOrSimulate(damageSources().mobProjectile(this, owner), owner.attackDamage() * 0.8F)) {
                 victim.setRemainingFireTicks((4) * 20);
                 CindermawEntity.shove(victim, offset, 0.8, 0.3);
             }
@@ -360,7 +362,7 @@ public final class MagmaEffect extends Projectile {
                 continue;
             }
             struck.add(victim.getId());
-            if (victim.hurt(damageSources().mobProjectile(this, owner), damage)) {
+            if (victim.hurtOrSimulate(damageSources().mobProjectile(this, owner), damage)) {
                 victim.setRemainingFireTicks((fire) * 20);
                 victim.setDeltaMovement(victim.getDeltaMovement().add(0, lift, 0));
                 victim.hurtMarked = true;
@@ -370,11 +372,11 @@ public final class MagmaEffect extends Projectile {
 
     // 特效不需要持久化
     @Override
-    protected void addAdditionalSaveData(CompoundTag tag) {
+    protected void addAdditionalSaveData(ValueOutput output) {
     }
 
     @Override
-    protected void readAdditionalSaveData(CompoundTag tag) {
+    protected void readAdditionalSaveData(ValueInput input) {
     }
 
     // 短寿命实体不写入存档
@@ -388,3 +390,4 @@ public final class MagmaEffect extends Projectile {
         return distance < 96 * 96;
     }
 }
+
