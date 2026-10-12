@@ -14,8 +14,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
+
+
 import org.hp.cindermaw.client.CinderFx;
 
 // 火山齐射的熔岩弹：发射时确定抛物线，落点提前显示预警，命中后爆炸并留下熔岩池。
@@ -32,8 +32,8 @@ public final class LavaBomb extends Projectile {
     }
 
     @Override
-    protected void defineSynchedData() {
-        entityData.define(FLIGHT, new CompoundTag());
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(FLIGHT, new CompoundTag());
     }
 
     // 写入弹道：起点、终点、起始刻与飞行时长
@@ -97,7 +97,7 @@ public final class LavaBomb extends Projectile {
         }
         // 客户端只负责特效
         if (level().isClientSide) {
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> CinderFx.bombTick(this));
+            if (level().isClientSide) CinderFx.bombTick(this);
         }
         if (impacted()) {
             if (!level().isClientSide && impactAge(0) >= LINGER) {
@@ -143,11 +143,12 @@ public final class LavaBomb extends Projectile {
                 continue;
             }
             if (victim.hurt(damageSources().mobProjectile(this, owner), owner.attackDamage() * 0.7F)) {
-                victim.setSecondsOnFire(3);
+                victim.setRemainingFireTicks((3) * 20);
                 CindermawEntity.shove(victim, victim.position().subtract(contact), 0.5, 0.3);
             }
         }
-        MagmaEffect.pool(owner, contact, 1.6F);
+        // 熔岩池贴到地面，命中半空目标时也落在脚下
+        MagmaEffect.pool(owner, owner.groundAt(contact), 1.6F);
     }
 
     // 熔岩弹不持久化

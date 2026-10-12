@@ -34,17 +34,17 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
+
+
 import org.hp.cindermaw.ModEntities;
 import org.hp.cindermaw.client.CinderFx;
 import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.object.PlayState;
+import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.animation.AnimatableManager;
+import software.bernie.geckolib.animation.AnimationController;
+import software.bernie.geckolib.animation.AnimationState;
+import software.bernie.geckolib.animation.RawAnimation;
+import software.bernie.geckolib.animation.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.ArrayList;
@@ -79,14 +79,20 @@ public final class CindermawEntity extends Monster implements GeoEntity {
     private int attackGap = 40;
     private CindermawAttack lastAttack = CindermawAttack.NONE;
     private boolean leapAirborne;
+    // 召唤出场倒计时：等客户端收到实体后再触发动画
+    private int entranceDelay;
     private Vec3 leapHorizontal = Vec3.ZERO;
     private Vec3 targetLastPos;
     private Vec3 targetVelocity = Vec3.ZERO;
 
     public CindermawEntity(EntityType<? extends CindermawEntity> type, Level level) {
         super(type, level);
-        xpReward = 60;
-        setMaxUpStep(1.5F);
+        xpReward = 300;
+    }
+
+    @Override
+    public float maxUpStep() {
+        return 1.5F;
     }
 
     // 基础数值：高血量高护甲，完全免疫击退
@@ -101,11 +107,11 @@ public final class CindermawEntity extends Monster implements GeoEntity {
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        entityData.define(ATTACK, 0);
-        entityData.define(ATTACK_START, 0);
-        entityData.define(PHASE2, false);
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(ATTACK, 0);
+        builder.define(ATTACK_START, 0);
+        builder.define(PHASE2, false);
     }
 
     // 同步读取：当前技能、技能开始至今的刻数、是否二阶段
@@ -205,7 +211,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
         super.tick();
         // 客户端只负责特效
         if (level().isClientSide) {
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> CinderFx.bossTick(this));
+            if (level().isClientSide) CinderFx.bossTick(this);
             return;
         }
         bossEvent.setProgress(getHealth() / getMaxHealth());
@@ -222,6 +228,18 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             attackGap--;
         }
         trackTarget();
+        // 召唤出场：撑地起身动画，脚下炸开冲击环
+        if (entranceDelay > 0) {
+            entranceDelay--;
+            if (entranceDelay == 0) {
+                startAttack(CindermawAttack.LAND);
+                MagmaEffect.shockwave(this, position(), 7.0F, 0);
+                playSound(SoundEvents.RAVAGER_ROAR, 4.0F, 0.6F);
+                playSound(SoundEvents.GENERIC_EXPLODE.value(), 3.0F, 0.6F);
+                attackGap = 30;
+            }
+            return;
+        }
         CindermawAttack attack = getAttack();
         // 半血进入二阶段：滞空时等落地后再咆哮
         boolean airborne = attack == CindermawAttack.LEAP && leapAirborne;
@@ -416,6 +434,17 @@ public final class CindermawEntity extends Monster implements GeoEntity {
         }
     }
 
+    // 由召唤物生成时调用，延迟两刻播放出场
+    public void beginEntrance() {
+        entranceDelay = 3;
+    }
+
+    // 头部可偏离身体的最大角度，原版默认 10 度太小，盯人时头几乎不动
+    @Override
+    public int getMaxHeadYRot() {
+        return 50;
+    }
+
     // 限速转向目标，处理角度环绕
     private void face(LivingEntity target, float maxStep) {
         double dx = target.getX() - getX();
@@ -448,7 +477,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             length = 10.0F;
         }
         MagmaEffect.fissure(this, center, yBodyRot, lines, length);
-        playSound(SoundEvents.GENERIC_EXPLODE, 2.2F, 0.55F);
+        playSound(SoundEvents.GENERIC_EXPLODE.value(), 2.2F, 0.55F);
         playSound(SoundEvents.ANVIL_LAND, 1.4F, 0.5F);
     }
 
@@ -471,7 +500,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             }
             if (victim.hurt(damageSources().mobAttack(this), attackDamage() * 0.9F)) {
                 shove(victim, push, 1.3, 0.35);
-                victim.setSecondsOnFire(3);
+                victim.setRemainingFireTicks((3) * 20);
             }
         }
         playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 2.0F, 0.5F);
@@ -493,7 +522,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             }
             victim.invulnerableTime = 0;
             if (victim.hurt(damageSources().mobAttack(this), attackDamage() * 0.3F)) {
-                victim.setSecondsOnFire(5);
+                victim.setRemainingFireTicks((5) * 20);
                 victim.setDeltaMovement(victim.getDeltaMovement().add(direction.scale(0.12)));
                 victim.hurtMarked = true;
             }
@@ -525,7 +554,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             bomb.launch(this, ventTop((i + wave) % 3), ground.getLocation().add(0, 0.02, 0), 26 + i * 3 + random.nextInt(4));
             level().addFreshEntity(bomb);
         }
-        playSound(SoundEvents.GENERIC_EXPLODE, 1.6F, 1.3F);
+        playSound(SoundEvents.GENERIC_EXPLODE.value(), 1.6F, 1.3F);
         playSound(SoundEvents.BLAZE_SHOOT, 2.0F, 0.6F);
     }
 
@@ -543,7 +572,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
             leapHorizontal = new Vec3(offset.x / 22.0, 0, offset.z / 22.0);
             setDeltaMovement(leapHorizontal.x, 1.0 + Mth.clamp(offset.y / 20.0, -0.1, 0.25), leapHorizontal.z);
             hasImpulse = true;
-            playSound(SoundEvents.GENERIC_EXPLODE, 1.4F, 0.8F);
+            playSound(SoundEvents.GENERIC_EXPLODE.value(), 1.4F, 0.8F);
         }
         if (age > 12) {
             if (!onGround()) {
@@ -583,7 +612,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
         if (isPhase2()) {
             MagmaEffect.geyserRing(this, center, 6.8F, 14, 18);
         }
-        playSound(SoundEvents.GENERIC_EXPLODE, 3.0F, 0.45F);
+        playSound(SoundEvents.GENERIC_EXPLODE.value(), 3.0F, 0.45F);
         playSound(SoundEvents.ANVIL_LAND, 2.0F, 0.4F);
     }
 
@@ -591,7 +620,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
     private void novaRelease() {
         MagmaEffect.nova(this, position(), 16.0F);
         MagmaEffect.shockwave(this, position(), 3.5F, 1);
-        playSound(SoundEvents.GENERIC_EXPLODE, 2.5F, 0.7F);
+        playSound(SoundEvents.GENERIC_EXPLODE.value(), 2.5F, 0.7F);
         playSound(SoundEvents.FIRECHARGE_USE, 2.5F, 0.4F);
     }
 
@@ -604,12 +633,12 @@ public final class CindermawEntity extends Monster implements GeoEntity {
                 continue;
             }
             if (victim.hurt(damageSources().mobAttack(this), attackDamage() * 0.3F)) {
-                victim.setSecondsOnFire(4);
+                victim.setRemainingFireTicks((4) * 20);
             }
             shove(victim, victim.position().subtract(position()), 1.6, 0.5);
         }
         MagmaEffect.shockwave(this, position(), 8.0F, 1);
-        playSound(SoundEvents.GENERIC_EXPLODE, 3.0F, 0.6F);
+                playSound(SoundEvents.GENERIC_EXPLODE.value(), 3.0F, 0.6F);
     }
 
     // 地面吸附：从上往下找支撑面，找不到就用原高度
@@ -650,7 +679,7 @@ public final class CindermawEntity extends Monster implements GeoEntity {
     protected void tickDeath() {
         deathTime++;
         if (deathTime >= 60 && !level().isClientSide && !isRemoved()) {
-            playSound(SoundEvents.GENERIC_EXPLODE, 3.0F, 0.7F);
+            playSound(SoundEvents.GENERIC_EXPLODE.value(), 3.0F, 0.7F);
             remove(RemovalReason.KILLED);
         }
     }

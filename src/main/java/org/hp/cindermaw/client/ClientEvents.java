@@ -1,16 +1,14 @@
 package org.hp.cindermaw.client;
 
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.EntityRenderersEvent;
-import net.minecraftforge.client.event.RegisterParticleProvidersEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
+import net.neoforged.bus.api.SubscribeEvent;
 import org.hp.cindermaw.Cindermaw;
 import org.hp.cindermaw.ModEntities;
 import org.hp.cindermaw.ModParticles;
 
 // 客户端注册只在 Forge 客户端事件总线加载，服务器不会解析渲染类。
-@Mod.EventBusSubscriber(modid = Cindermaw.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class ClientEvents {
     @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {

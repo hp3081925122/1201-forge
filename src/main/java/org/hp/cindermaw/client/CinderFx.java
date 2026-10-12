@@ -7,11 +7,10 @@ import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.ViewportEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.neoforge.client.event.ViewportEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.bus.api.SubscribeEvent;
 import org.hp.cindermaw.Cindermaw;
 import org.hp.cindermaw.ModParticles;
 import org.hp.cindermaw.entity.CindermawAttack;
@@ -20,7 +19,6 @@ import org.hp.cindermaw.entity.LavaBomb;
 import org.hp.cindermaw.entity.MagmaEffect;
 
 // 客户端粒子与镜头震动：由实体客户端刻驱动，与服务端技能时间线同刻。
-@Mod.EventBusSubscriber(modid = Cindermaw.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class CinderFx {
     private static float shake;
     private static float shakeTime;
@@ -45,8 +43,8 @@ public final class CinderFx {
     }
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase == TickEvent.Phase.END && shake > 0) {
+    public static void onClientTick(ClientTickEvent.Post event) {
+        if (shake > 0) {
             shake *= 0.82F;
             shakeTime += 1;
             if (shake < 0.02F) {
@@ -185,10 +183,10 @@ public final class CinderFx {
                 // 挥击：火焰沿挥击方向甩出
                 Vec3 hand = null;
                 double side = 0;
-                if (age >= 7 && age < 15) {
+                if (age >= 9 && age < 15) {
                     hand = handR;
                     side = 1;
-                } else if (age >= 20 && age < 28) {
+                } else if (age >= 22 && age < 28) {
                     hand = handL;
                     side = -1;
                 }
@@ -200,7 +198,17 @@ public final class CinderFx {
                     }
                 }
                 if (age == 11 || age == 24) {
-                    shake(boss.position(), 0.5F, 10);
+                    // 命中瞬间：拳前爆闪、贴地扬尘与碎石
+                    Vec3 hit = handR;
+                    if (age == 24) {
+                        hit = handL;
+                    }
+                    spawn(ModParticles.HEAT_FLASH.get(), hit, 2.6, 0, 0);
+                    debris(hit, 8, 0.3, random);
+                    for (int i = 0; i < 6; i++) {
+                        spawn(ModParticles.CINDER_SMOKE.get(), new Vec3(hit.x, boss.getY() + 0.2, hit.z).add(spread(random, 0.8), 0, spread(random, 0.8)), spread(random, 0.08), 0.03, spread(random, 0.08));
+                    }
+                    shake(boss.position(), 0.75F, 12);
                 }
             }
             case BREATH -> breathTick(boss, furnace, age, random);
