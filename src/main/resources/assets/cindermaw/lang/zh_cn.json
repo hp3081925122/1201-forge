@@ -1,6 +1,6 @@
 {
   "entity.cindermaw.cindermaw": "熔渊炉心",
   "item.cindermaw.cindermaw_spawn_egg": "熔渊炉心刷怪蛋",
-  "entity.cindermaw.volcanic_fireball": "熔岩火球",
-  "entity.cindermaw.ground_eruption": "熔岩震荡"
+  "entity.cindermaw.lava_bomb": "熔岩弹",
+  "entity.cindermaw.magma_effect": "熔岩震荡"
 }

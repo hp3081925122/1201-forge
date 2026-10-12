@@ -8,34 +8,35 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import org.hp.cindermaw.entity.CindermawEntity;
-import org.hp.cindermaw.entity.VolcanicFireball;
-import org.hp.cindermaw.entity.GroundEruption;
+import org.hp.cindermaw.entity.LavaBomb;
+import org.hp.cindermaw.entity.MagmaEffect;
 
-// 集中管理熔渊炉心实体与刷怪蛋，公共注册类不引用客户端渲染代码。
+// 集中注册 Boss、熔岩弹、地面特效实体与刷怪蛋，公共注册类不引用客户端代码。
 public final class ModEntities {
     public static final DeferredRegister<EntityType<?>> ENTITIES =
             DeferredRegister.create(ForgeRegistries.ENTITY_TYPES, Cindermaw.MOD_ID);
     public static final DeferredRegister<Item> ITEMS =
             DeferredRegister.create(ForgeRegistries.ITEMS, Cindermaw.MOD_ID);
 
-    // 碰撞体覆盖炉心主体，宽度和高度按当前 52.6×54.5 模型单位折算。
+    // 碰撞体覆盖撑地后的双臂与躯干，免疫火焰与岩浆。
     public static final RegistryObject<EntityType<CindermawEntity>> CINDERMAW = ENTITIES.register("cindermaw",
             () -> EntityType.Builder.of(CindermawEntity::new, MobCategory.MONSTER)
-                    .sized(3.3F, 3.5F).clientTrackingRange(10).updateInterval(3)
+                    .sized(3.2F, 3.3F).fireImmune().clientTrackingRange(10).updateInterval(2)
                     .build(Cindermaw.MOD_ID + ":cindermaw"));
 
-    // 火球使用同一实体承载飞行和短暂落地特效。
-    public static final RegistryObject<EntityType<VolcanicFireball>> VOLCANIC_FIREBALL = ENTITIES.register("volcanic_fireball",
-            () -> EntityType.Builder.<VolcanicFireball>of(VolcanicFireball::new, MobCategory.MISC)
-                    .sized(0.5F, 0.5F).clientTrackingRange(12).updateInterval(1)
-                    .build(Cindermaw.MOD_ID + ":volcanic_fireball"));
+    // 火山齐射的熔岩弹，弹道由服务端一次性确定。
+    public static final RegistryObject<EntityType<LavaBomb>> LAVA_BOMB = ENTITIES.register("lava_bomb",
+            () -> EntityType.Builder.<LavaBomb>of(LavaBomb::new, MobCategory.MISC)
+                    .sized(0.6F, 0.6F).fireImmune().clientTrackingRange(12).updateInterval(1)
+                    .build(Cindermaw.MOD_ID + ":lava_bomb"));
 
-    // 震地与十二路喷火共用一个短寿命实体。
-    public static final RegistryObject<EntityType<GroundEruption>> GROUND_ERUPTION = ENTITIES.register("ground_eruption",
-            () -> EntityType.Builder.<GroundEruption>of(GroundEruption::new, MobCategory.MISC)
-                    .sized(0.1F,0.1F).clientTrackingRange(12).updateInterval(2).build(Cindermaw.MOD_ID+":ground_eruption"));
+    // 冲击环、熔岩裂缝、喷泉环、熔岩池与新星火墙共用一个短寿命实体。
+    public static final RegistryObject<EntityType<MagmaEffect>> MAGMA_EFFECT = ENTITIES.register("magma_effect",
+            () -> EntityType.Builder.<MagmaEffect>of(MagmaEffect::new, MobCategory.MISC)
+                    .sized(0.5F, 0.5F).fireImmune().clientTrackingRange(12).updateInterval(5)
+                    .build(Cindermaw.MOD_ID + ":magma_effect"));
 
-    // 刷怪蛋颜色对应玄武岩主体与炉心橙焰，便于在创造栏识别。
+    // 刷怪蛋颜色对应玄武岩主体与炉心橙焰。
     public static final RegistryObject<Item> CINDERMAW_SPAWN_EGG = ITEMS.register("cindermaw_spawn_egg",
             () -> new ForgeSpawnEggItem(CINDERMAW, 0x252933, 0xE65A1B, new Item.Properties()));
 

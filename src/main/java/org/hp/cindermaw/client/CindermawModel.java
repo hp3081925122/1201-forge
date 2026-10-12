@@ -1,11 +1,16 @@
 package org.hp.cindermaw.client;
 
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import org.hp.cindermaw.Cindermaw;
+import org.hp.cindermaw.entity.CindermawAttack;
 import org.hp.cindermaw.entity.CindermawEntity;
+import software.bernie.geckolib.constant.DataTickets;
+import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.model.GeoModel;
+import software.bernie.geckolib.model.data.EntityModelData;
 
-// GeckoLib 资源路径与 Blockbench 导出的几何、像素贴图保持一一对应。
+// GeckoLib 资源路径与 Blockbench 导出的几何、贴图、动画一一对应。
 public final class CindermawModel extends GeoModel<CindermawEntity> {
     private static final ResourceLocation MODEL = ResourceLocation.fromNamespaceAndPath(Cindermaw.MOD_ID, "geo/cindermaw.geo.json");
     private static final ResourceLocation TEXTURE = ResourceLocation.fromNamespaceAndPath(Cindermaw.MOD_ID, "textures/entity/cindermaw.png");
@@ -24,5 +29,22 @@ public final class CindermawModel extends GeoModel<CindermawEntity> {
     @Override
     public ResourceLocation getAnimationResource(CindermawEntity entity) {
         return ANIMATION;
+    }
+
+    // 空闲与行走时头部叠加视线偏转，技能期间完全交给动画
+    @Override
+    public void setCustomAnimations(CindermawEntity entity, long instanceId, AnimationState<CindermawEntity> state) {
+        super.setCustomAnimations(entity, instanceId, state);
+        if (entity.getAttack() != CindermawAttack.NONE || entity.isDeadOrDying()) {
+            return;
+        }
+        EntityModelData data = state.getData(DataTickets.ENTITY_MODEL_DATA);
+        if (data == null) {
+            return;
+        }
+        getBone("head").ifPresent(head -> {
+            head.setRotY(head.getRotY() + Mth.clamp(data.netHeadYaw(), -35.0F, 35.0F) * Mth.DEG_TO_RAD);
+            head.setRotX(head.getRotX() + Mth.clamp(data.headPitch(), -20.0F, 20.0F) * Mth.DEG_TO_RAD);
+        });
     }
 }
